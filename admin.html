@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EcoCollect - Admin Panel</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .performance-card{
+      background:#f9f9f9;
+      padding:15px;
+      margin-bottom:12px;
+      border-radius:8px;
+    }
+    .excellent { border-left:6px solid #2e7d5b; }
+    .good { border-left:6px solid #f9a825; }
+    .poor { border-left:6px solid #d32f2f; }
+  </style>
+</head>
+<body>
+
+<div class="dashboard">
+
+  <div class="sidebar">
+    <h2>EcoCollect</h2>
+
+    <ul>
+      <li class="active">Dashboard</li>
+      <li onclick="go('createward.html')">Manage Wards</li>
+      <li onclick="go('route.html')">Set Route</li>
+      <li onclick="go('schedule.html')">Create Schedule</li>
+      <li onclick="go('complaints.html')">View Complaints</li>
+    </ul>
+
+    <div class="user-box">
+      <span class="badge">ADMIN</span>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <h1>Performance Dashboard 📊</h1>
+
+    <div class="card">
+      <h2>Overall System Stats</h2>
+      <p><strong>Total Wards:</strong> <span id="totalWards">0</span></p>
+      <p><strong>Total Complaints:</strong> <span id="totalComplaints">0</span></p>
+      <p><strong>Pending Issues:</strong> <span id="totalPending">0</span></p>
+      <p><strong>Resolved Issues:</strong> <span id="totalResolved">0</span></p>
+    </div>
+
+    <div class="card">
+      <h2>Ward Performance</h2>
+      <div id="wardPerformance"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script>
+
+function go(page){
+  window.location.href = page;
+}
+
+async function loadPerformance(){
+  const performanceDiv = document.getElementById("wardPerformance");
+  try {
+    const { stats, performance } = await apiRequest("/dashboard/stats");
+    document.getElementById("totalWards").innerText = stats.totalWards;
+    document.getElementById("totalComplaints").innerText = stats.totalComplaints;
+    document.getElementById("totalPending").innerText = stats.totalPending;
+    document.getElementById("totalResolved").innerText = stats.totalResolved;
+
+    if(performance.length === 0){
+      performanceDiv.innerHTML = "<p>No wards created yet.</p>";
+      return;
+    }
+
+    performanceDiv.innerHTML = performance.map(ward => {
+      const className = ward.status.toLowerCase();
+      return `
+        <div class="performance-card ${escapeHtml(className)}">
+          <h3>${escapeHtml(ward.wardName)} (${escapeHtml(ward.areaName)})</h3>
+          <p><strong>Total Complaints:</strong> ${ward.totalComplaints}</p>
+          <p><strong>Pending:</strong> ${ward.pending}</p>
+          <p><strong>Resolved:</strong> ${ward.resolved}</p>
+          <p><strong>Cleanliness Score:</strong> ${ward.score}</p>
+          <p><strong>Performance:</strong> ${escapeHtml(ward.status)}</p>
+        </div>
+      `;
+    }).join("");
+  } catch (error) {
+    performanceDiv.innerHTML = `<p role="alert">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+if(requireRole("admin")) loadPerformance();
+
+</script>
+
+</body>
+</html>

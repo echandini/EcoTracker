@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EcoCollect - Resident Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .resident-dashboard .sidebar {
+      flex: 0 0 260px;
+    }
+    .resident-dashboard .sidebar ul {
+      display: grid;
+      gap: 8px;
+    }
+    .resident-dashboard .sidebar li {
+      padding: 0;
+    }
+    .resident-dashboard .sidebar a {
+      display: block;
+      padding: 12px;
+      border-radius: 6px;
+      color: inherit;
+      text-decoration: none;
+    }
+    .resident-dashboard .sidebar a:hover,
+    .resident-dashboard .sidebar a:focus-visible,
+    .resident-dashboard .sidebar a.active {
+      background: #2e7d5b;
+      outline: none;
+    }
+    .resident-dashboard .main-content section {
+      scroll-margin-top: 20px;
+    }
+    .resident-dashboard .main-content section[hidden] {
+      display: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px;
+      text-align: center;
+      font-size: 13px;
+    }
+    th {
+      background:#2e7d5b;
+      color:white;
+    }
+    textarea {
+      width:100%;
+      padding:8px;
+      margin-top:5px;
+    }
+    @media (max-width: 760px) {
+      .resident-dashboard {
+        height: auto;
+        min-height: 100vh;
+        flex-direction: column;
+      }
+      .resident-dashboard .sidebar {
+        flex-basis: auto;
+        width: 100%;
+      }
+      .resident-dashboard .sidebar h2 {
+        margin-bottom: 16px;
+      }
+      .resident-dashboard .sidebar ul {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
+      .resident-dashboard .main-content {
+        overflow: visible;
+        padding: 24px 16px;
+      }
+      .resident-dashboard .cards {
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="dashboard resident-dashboard">
+
+  <div class="sidebar">
+    <h2>EcoCollect</h2>
+    <nav aria-label="Resident dashboard">
+      <ul>
+        <li><a class="active" href="#overview" aria-current="page">Dashboard</a></li>
+        <li><a href="#wardSchedule">Ward Schedule</a></li>
+        <li><a href="#raiseComplaint">Raise Complaint</a></li>
+        <li><a href="#reportMissedPickup">Report Missed Pickup</a></li>
+        <li><a href="#giveFeedback">Give Feedback</a></li>
+      </ul>
+    </nav>
+
+    <div class="user-box">
+      <p><strong id="userName">Resident User</strong></p>
+      <span class="badge">RESIDENT</span>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <section id="overview">
+      <h1>Resident Dashboard 👋</h1>
+      <div class="cards">
+        <div class="card">
+          <h3>Cleanliness Score</h3>
+          <h2 id="score">100</h2>
+        </div>
+        <div class="card">
+          <h3>Open Issues</h3>
+          <h2 id="openCount">0</h2>
+        </div>
+        <div class="card">
+          <h3>Resolved</h3>
+          <h2 id="resolvedCount">0</h2>
+        </div>
+      </div>
+    </section>
+    <p id="dashboardMessage" role="status"></p>
+
+    <section id="wardSchedule" hidden>
+      <div class="card">
+        <h3>Select Your Ward</h3>
+        <select id="wardSelect"></select>
+        <button onclick="loadWardDetails()">Check Timetable</button>
+      </div>
+      <div class="card" id="timetableCard" hidden>
+        <h3>Weekly Timetable</h3>
+        <div id="timetable"></div>
+      </div>
+    </section>
+
+    <section id="raiseComplaint" hidden>
+      <div class="card">
+        <h3>Raise Complaint</h3>
+        <textarea id="complaintText" placeholder="Describe your issue..."></textarea>
+        <button onclick="submitComplaint('Complaint')">Submit Complaint</button>
+        <p id="complaintMessage" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="reportMissedPickup" hidden>
+      <div class="card">
+        <h3>Report Missed Pickup</h3>
+        <textarea id="missedText" placeholder="Describe missed pickup..."></textarea>
+        <button onclick="submitComplaint('Missed Pickup')">Report Missed</button>
+        <p id="missedMessage" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="giveFeedback" hidden>
+      <div class="card">
+        <h3>Give Feedback</h3>
+        <textarea id="feedbackText" placeholder="Share your feedback..."></textarea>
+        <button onclick="submitComplaint('Feedback')">Submit Feedback</button>
+        <p id="feedbackMessage" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script>
+let wards = [];
+let schedules = [];
+
+document.querySelectorAll(".resident-dashboard .sidebar a").forEach(link => {
+  link.addEventListener("click", event => {
+    event.preventDefault();
+    const targetId = link.getAttribute("href").slice(1);
+    document.querySelectorAll(".resident-dashboard .main-content section").forEach(section => {
+      section.hidden = section.id !== targetId;
+    });
+    document.querySelectorAll(".resident-dashboard .sidebar a").forEach(item => {
+      item.classList.remove("active");
+      item.removeAttribute("aria-current");
+    });
+    link.classList.add("active");
+    link.setAttribute("aria-current", "page");
+  });
+});
+
+async function loadWardDetails(){
+  const ward = document.getElementById("wardSelect").value;
+  const timetable = document.getElementById("timetable");
+  const timetableCard = document.getElementById("timetableCard");
+  if(!ward){
+    timetableCard.hidden = true;
+    document.getElementById("dashboardMessage").innerText = "No wards are available yet.";
+    return;
+  }
+
+  document.getElementById("dashboardMessage").innerText = "";
+  const wardSchedule = schedules
+    .filter(schedule => schedule.ward === ward)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if(wardSchedule.length === 0){
+    timetable.innerHTML = "<p>No schedule available.</p>";
+  } else {
+    const rows = wardSchedule.map(schedule => {
+      const dayName = schedule.day || new Date(`${schedule.date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long" });
+      return `
+        <tr>
+          <td>${escapeHtml(dayName)}</td>
+          <td>${escapeHtml(schedule.time)}</td>
+          <td>${escapeHtml(schedule.truck)}</td>
+          <td>${escapeHtml(schedule.supervisor)}</td>
+        </tr>
+      `;
+    }).join("");
+    timetable.innerHTML = `<table><tr><th>Day</th><th>Time</th><th>Truck</th><th>Supervisor</th></tr>${rows}</table>`;
+  }
+  timetableCard.hidden = false;
+  await updateStats();
+}
+
+async function submitComplaint(type){
+  const ward = document.getElementById("wardSelect").value;
+  const messageId = type === "Complaint"
+    ? "complaintMessage"
+    : type === "Missed Pickup"
+      ? "missedMessage"
+      : "feedbackMessage";
+  const message = document.getElementById(messageId);
+  const textBox = type === "Complaint"
+    ? document.getElementById("complaintText")
+    : type === "Missed Pickup"
+      ? document.getElementById("missedText")
+      : document.getElementById("feedbackText");
+  const button = textBox.parentElement.querySelector("button");
+  const text = textBox.value.trim();
+  message.style.color = "#b71c1c";
+
+  if(!ward){
+    message.innerText = "Select a ward before submitting.";
+    return;
+  }
+  if(!text){
+    message.innerText = "Please enter details before submitting.";
+    return;
+  }
+
+  button.disabled = true;
+  message.innerText = "Submitting...";
+  try {
+    await apiRequest("/complaints", {
+      method: "POST",
+      body: JSON.stringify({ ward, type, text })
+    });
+    textBox.value = "";
+    message.style.color = "#1f5c43";
+    message.innerText = `${type} submitted successfully.`;
+    await updateStats();
+  } catch (error) {
+    message.innerText = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function updateStats(){
+  const ward = document.getElementById("wardSelect").value;
+  if(!ward) return;
+  try {
+    const stats = await apiRequest(`/dashboard/resident/${encodeURIComponent(ward)}`);
+    document.getElementById("openCount").innerText = stats.open;
+    document.getElementById("resolvedCount").innerText = stats.resolved;
+    document.getElementById("score").innerText = stats.score;
+  } catch (error) {
+    document.getElementById("dashboardMessage").innerText = error.message;
+  }
+}
+
+async function loadDashboard(){
+  const user = requireRole("resident");
+  if(!user) return;
+
+  document.getElementById("userName").innerText = user.name;
+  const wardSelect = document.getElementById("wardSelect");
+  wardSelect.addEventListener("change", () => {
+    document.getElementById("timetableCard").hidden = true;
+    document.getElementById("timetable").innerHTML = "";
+  });
+  try {
+    const results = await Promise.all([
+      apiRequest("/wards"),
+      apiRequest("/schedules")
+    ]);
+    wards = results[0].wards;
+    schedules = results[1].schedules;
+    wardSelect.innerHTML = wards.map(ward =>
+      `<option value="${escapeHtml(ward.wardName)}">${escapeHtml(ward.wardName)}</option>`
+    ).join("");
+    if(wards.length === 0){
+      wardSelect.innerHTML = '<option value="">No wards available</option>';
+      return;
+    }
+  } catch (error) {
+    document.getElementById("dashboardMessage").innerText = error.message;
+  }
+}
+
+loadDashboard();
+
+</script>
+
+</body>
+</html>

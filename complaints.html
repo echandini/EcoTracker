@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin - Complaints Panel</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="dashboard">
+
+  <div class="sidebar">
+    <h2>EcoCollect</h2>
+    <ul>
+      <li onclick="go('admin.html')">Dashboard</li>
+      <li onclick="go('createward.html')">Manage Wards</li>
+      <li onclick="go('route.html')">Set Route</li>
+      <li onclick="go('schedule.html')">Create Schedule</li>
+      <li class="active">View Complaints</li>
+    </ul>
+    <div class="user-box">
+      <span class="badge">ADMIN</span>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <h1>Resident Complaints</h1>
+
+    <div id="complaintList"></div>
+
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script>
+
+function go(page){
+  window.location.href = page;
+}
+
+async function loadComplaints(){
+  const list = document.getElementById("complaintList");
+
+  try {
+    const { complaints } = await apiRequest("/complaints");
+    if(complaints.length === 0){
+      list.innerHTML = "<p>No complaints submitted yet.</p>";
+      return;
+    }
+
+    list.innerHTML = complaints.map(complaint => `
+      <div class="card" style="background:#f9f9f9;">
+        <p><strong>Ward:</strong> ${escapeHtml(complaint.ward)}</p>
+        <p><strong>Type:</strong> ${escapeHtml(complaint.type)}</p>
+        <p><strong>Message:</strong> ${escapeHtml(complaint.text)}</p>
+        <p><strong>Status:</strong> ${escapeHtml(complaint.status)}</p>
+        ${complaint.status === "Pending" ?
+          `<button onclick="resolveComplaint('${escapeHtml(complaint._id)}')" style="background:#2e7d5b;">Resolve</button>`
+          : ""
+        }
+        <button onclick="deleteComplaint('${escapeHtml(complaint._id)}')" style="background:#d32f2f;">Delete</button>
+      </div>
+    `).join("");
+  } catch (error) {
+    list.innerHTML = `<p role="alert">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function resolveComplaint(id){
+  try {
+    await apiRequest(`/complaints/${encodeURIComponent(id)}/resolve`, { method: "PATCH" });
+    await loadComplaints();
+  } catch (error) {
+    alert("Could not resolve complaint: " + error.message);
+  }
+}
+
+async function deleteComplaint(id){
+  try {
+    await apiRequest(`/complaints/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await loadComplaints();
+  } catch (error) {
+    alert("Could not delete complaint: " + error.message);
+  }
+}
+
+if(requireRole("admin")) loadComplaints();
+
+</script>
+
+</body>
+</html>

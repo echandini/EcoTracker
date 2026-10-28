@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Set Truck Route</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="dashboard">
+
+  <div class="sidebar">
+    <h2>EcoCollect</h2>
+    <ul>
+      <li onclick="go('admin.html')">Dashboard</li>
+      <li onclick="go('createward.html')">Manage Wards</li>
+      <li class="active">Set Route</li>
+      <li onclick="go('schedule.html')">Create Schedule</li>
+      <li onclick="go('complaints.html')">View Complaints</li>
+    </ul>
+    <div class="user-box">
+      <span class="badge">ADMIN</span>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <h1>Assign Truck to Ward</h1>
+
+    <!-- Route Form -->
+    <div class="card">
+      <input type="text" id="truckName" placeholder="Truck Name">
+
+      <label>Select Ward:</label>
+      <select id="wardSelect"></select>
+
+      <button onclick="assignRoute()" id="submitBtn">Assign Route</button>
+      <p id="routeMsg" style="color:green; margin-top:10px;"></p>
+    </div>
+
+    <!-- Route List -->
+    <div class="card">
+      <h2>Assigned Routes</h2>
+      <div id="routeList"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script>
+let wards = [];
+let routes = [];
+let editId = null;
+
+function go(page){
+  window.location.href = page;
+}
+
+function renderWards(){
+  const wardSelect = document.getElementById("wardSelect");
+  wardSelect.innerHTML = wards.length
+    ? wards.map(ward => `<option value="${escapeHtml(ward.wardName)}">${escapeHtml(ward.wardName)}</option>`).join("")
+    : '<option value="">No wards available</option>';
+  document.getElementById("submitBtn").disabled = wards.length === 0;
+}
+
+async function assignRoute(){
+  const truckName = document.getElementById("truckName").value.trim();
+  const wardName = document.getElementById("wardSelect").value;
+  const message = document.getElementById("routeMsg");
+
+  if(!truckName || !wardName){
+    message.style.color = "red";
+    message.innerText = "Enter a truck name and select a ward.";
+    return;
+  }
+
+  try {
+    await apiRequest(editId ? `/routes/${encodeURIComponent(editId)}` : "/routes", {
+      method: editId ? "PUT" : "POST",
+      body: JSON.stringify({ truckName, wardName })
+    });
+    message.style.color = "green";
+    message.innerText = editId ? "Route updated successfully." : "Route assigned successfully.";
+    editId = null;
+    document.getElementById("submitBtn").innerText = "Assign Route";
+    document.getElementById("truckName").value = "";
+    await displayRoutes();
+  } catch (error) {
+    message.style.color = "red";
+    message.innerText = error.message;
+  }
+}
+
+async function displayRoutes(){
+  const routeList = document.getElementById("routeList");
+  try {
+    const result = await apiRequest("/routes");
+    routes = result.routes;
+    if(routes.length === 0){
+      routeList.innerHTML = "<p>No routes assigned yet.</p>";
+      return;
+    }
+
+    routeList.innerHTML = routes.map(route => `
+      <div class="card" style="background:#f9f9f9;">
+        <p><strong>Truck:</strong> ${escapeHtml(route.truckName)}</p>
+        <p><strong>Ward:</strong> ${escapeHtml(route.wardName)}</p>
+        <button onclick="editRoute('${escapeHtml(route._id)}')" style="background:#1976d2;">Edit</button>
+        <button onclick="deleteRoute('${escapeHtml(route._id)}')" style="background:#d32f2f;">Delete</button>
+      </div>
+    `).join("");
+  } catch (error) {
+    routeList.innerHTML = `<p role="alert">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function editRoute(id){
+  const route = routes.find(item => item._id === id);
+  if(!route) return;
+  document.getElementById("truckName").value = route.truckName;
+  document.getElementById("wardSelect").value = route.wardName;
+  editId = id;
+  document.getElementById("submitBtn").innerText = "Update Route";
+}
+
+async function deleteRoute(id){
+  try {
+    await apiRequest(`/routes/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if(editId === id){
+      editId = null;
+      document.getElementById("submitBtn").innerText = "Assign Route";
+      document.getElementById("truckName").value = "";
+    }
+    await displayRoutes();
+  } catch (error) {
+    alert("Could not delete route: " + error.message);
+  }
+}
+
+async function loadRouteData(){
+  if(!requireRole("admin")) return;
+  try {
+    const result = await apiRequest("/wards");
+    wards = result.wards;
+    renderWards();
+    await displayRoutes();
+  } catch (error) {
+    document.getElementById("routeMsg").style.color = "red";
+    document.getElementById("routeMsg").innerText = error.message;
+  }
+}
+
+loadRouteData();
+
+</script>
+
+</body>
+</html>

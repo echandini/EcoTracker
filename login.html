@@ -1,0 +1,246 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoCollect - Login</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="login-body">
+  <div class="login-container">
+
+    <!-- Left Side -->
+    <div class="login-left">
+      <h1>EcoCollect</h1>
+      <p>
+        Smart waste management for cleaner communities.<br>
+        Track schedules, report issues, and build a greener future together.
+      </p>
+
+      <div class="stats">
+        <div>
+          <h2>6</h2>
+          <p>Wards</p>
+        </div>
+        <div>
+          <h2>2.4K</h2>
+          <p>Residents</p>
+        </div>
+        <div>
+          <h2>78%</h2>
+          <p>Avg Score</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Side -->
+    <div class="login-right">
+
+      <!-- LOGIN FORM -->
+      <div id="loginForm">
+        <h2>Welcome Back</h2>
+        <p>Sign in to your account</p>
+
+        <input
+          type="email"
+          id="loginEmail"
+          placeholder="Email"
+          autocomplete="username"
+          required
+        >
+
+        <input
+          type="password"
+          id="loginPassword"
+          placeholder="Password"
+          autocomplete="current-password"
+          required
+        >
+
+        <select id="loginRole">
+          <option value="resident">Resident</option>
+          <option value="admin">Admin</option>
+        </select>
+
+        <button type="button" onclick="login()">Sign In →</button>
+
+        <p class="register-text">
+          Don't have an account?
+          <span onclick="showRegister()">Register</span>
+        </p>
+      </div>
+
+      <!-- REGISTER FORM -->
+      <div id="registerForm" style="display:none;">
+        <h2>Create Account</h2>
+        <p>Register for your EcoCollect account</p>
+
+        <input
+          type="text"
+          id="regName"
+          placeholder="Full Name"
+          autocomplete="name"
+          required
+        >
+
+        <input
+          type="email"
+          id="regEmail"
+          placeholder="Email"
+          autocomplete="email"
+          required
+        >
+
+        <input
+          type="password"
+          id="regPassword"
+          placeholder="Password (minimum 6 characters)"
+          autocomplete="new-password"
+          required
+        >
+
+        <select id="regRole">
+          <option value="resident">Resident</option>
+          <option value="admin">Admin</option>
+        </select>
+
+        <input
+          type="password"
+          id="adminInviteCode"
+          placeholder="Admin registration code"
+          autocomplete="off"
+          style="display:none;"
+        >
+
+        <button type="button" onclick="register()">Sign Up</button>
+
+        <p class="register-text">
+          Already have an account?
+          <span onclick="showLogin()">Login</span>
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script>
+    function showRegister() {
+      document.getElementById("loginForm").style.display = "none";
+      document.getElementById("registerForm").style.display = "block";
+    }
+
+    function showLogin() {
+      document.getElementById("registerForm").style.display = "none";
+      document.getElementById("loginForm").style.display = "block";
+
+      document.getElementById("regName").value = "";
+      document.getElementById("regEmail").value = "";
+      document.getElementById("regPassword").value = "";
+      document.getElementById("adminInviteCode").value = "";
+
+      document.getElementById("regRole").value = "resident";
+      updateAdminCodeVisibility();
+    }
+
+    function updateAdminCodeVisibility() {
+      const role = document.getElementById("regRole").value;
+      const codeField = document.getElementById("adminInviteCode");
+      const isAdmin = role === "admin";
+
+      codeField.style.display = isAdmin ? "block" : "none";
+      codeField.required = isAdmin;
+
+      if (!isAdmin) {
+        codeField.value = "";
+      }
+    }
+
+    document.getElementById("regRole").addEventListener(
+      "change",
+      updateAdminCodeVisibility
+    );
+
+    async function login() {
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value;
+      const role = document.getElementById("loginRole").value;
+
+      if (!email || !password) {
+        alert("Please enter your email and password.");
+        return;
+      }
+
+      try {
+        const data = await apiRequest("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password, role })
+        });
+
+        sessionStorage.setItem("token", data.token);
+        sessionStorage.setItem("user", JSON.stringify(data.user));
+
+        alert("Login successful!");
+
+        window.location.href =
+          data.user.role === "admin" ? "admin.html" : "dashboard.html";
+
+      } catch (error) {
+        alert("Login failed: " + error.message);
+      }
+    }
+
+    async function register() {
+      const name = document.getElementById("regName").value.trim();
+      const email = document.getElementById("regEmail").value.trim();
+      const password = document.getElementById("regPassword").value;
+      const role = document.getElementById("regRole").value;
+      const adminInviteCode =
+        document.getElementById("adminInviteCode").value;
+
+      if (!name || !email || !password) {
+        alert("Please enter your name, email, and password.");
+        return;
+      }
+
+      if (password.length < 6) {
+        alert("Password must contain at least 6 characters.");
+        return;
+      }
+
+      if (role === "admin" && !adminInviteCode.trim()) {
+        alert("Please enter the Admin registration code.");
+        return;
+      }
+
+      const payload = { name, email, password, role };
+
+      if (role === "admin") {
+        payload.adminInviteCode = adminInviteCode;
+      }
+
+      try {
+        const data = await apiRequest("/auth/register", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+
+        alert(data.message || "Registration successful. Please log in.");
+
+        document.getElementById("loginEmail").value = email;
+        document.getElementById("loginPassword").value = "";
+        document.getElementById("loginRole").value = role;
+
+        showLogin();
+
+      } catch (error) {
+        alert("Registration failed: " + error.message);
+      }
+    }
+
+    updateAdminCodeVisibility();
+  </script>
+</body>
+</html>

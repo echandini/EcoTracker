@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Weekly Structured Timetable</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+      font-size: 14px;
+    }
+    th {
+      background-color: #2e7d5b;
+      color: white;
+    }
+    td {
+      background: #f9f9f9;
+    }
+  </style>
+</head>
+<body>
+
+<div class="dashboard">
+
+  <div class="sidebar">
+    <h2>EcoCollect</h2>
+    <ul>
+      <li onclick="go('admin.html')">Dashboard</li>
+      <li onclick="go('createward.html')">Manage Wards</li>
+      <li onclick="go('route.html')">Set Route</li>
+      <li class="active">Create Schedule</li>
+      <li onclick="go('complaints.html')">View Complaints</li>
+    </ul>
+    <div class="user-box">
+      <span class="badge">ADMIN</span>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <h1>Collision-Free Weekly Timetable</h1>
+
+    <div class="card">
+      <button onclick="generateWeeklySchedule()">Generate Weekly Schedule</button>
+      <p id="msg" style="margin-top:10px;"></p>
+    </div>
+
+    <div class="card">
+      <div id="scheduleOutput"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script>
+
+function go(page){
+  window.location.href = page;
+}
+
+const timeSlots = ["07:00", "10:00", "14:00", "16:00"];
+const weekDays = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+async function generateWeeklySchedule(){
+  const message = document.getElementById("msg");
+  try {
+    const result = await apiRequest("/schedules/generate", { method: "POST" });
+    message.style.color = "green";
+    message.innerText = result.message;
+    displaySchedule(result.schedules);
+  } catch (error) {
+    message.style.color = "red";
+    message.innerText = error.message;
+  }
+}
+
+function displaySchedule(schedules){
+  const outputDiv = document.getElementById("scheduleOutput");
+
+  if(schedules.length === 0){
+    outputDiv.innerHTML = "<p>No schedule generated yet.</p>";
+    return;
+  }
+
+  const grouped = schedules.reduce((result, schedule) => {
+    if(!result[schedule.truck]) result[schedule.truck] = [];
+    result[schedule.truck].push(schedule);
+    return result;
+  }, {});
+
+  outputDiv.innerHTML = Object.keys(grouped).map(truck => {
+    const rows = timeSlots.map(time => {
+      const cells = weekDays.map(day => {
+        const entry = grouped[truck].find(schedule => schedule.time === time && schedule.day === day);
+        return `<td>${entry ? escapeHtml(entry.ward) : "-"}</td>`;
+      }).join("");
+      return `<tr><td><strong>${time}</strong></td>${cells}</tr>`;
+    }).join("");
+    return `
+      <h3 style="margin-top:20px;">${escapeHtml(truck)}</h3>
+      <table>
+        <tr><th>Time</th>${weekDays.map(day => `<th>${day}</th>`).join("")}</tr>
+        ${rows}
+      </table>
+    `;
+  }).join("");
+}
+
+async function loadSchedule(){
+  if(!requireRole("admin")) return;
+  try {
+    const { schedules } = await apiRequest("/schedules");
+    displaySchedule(schedules);
+  } catch (error) {
+    document.getElementById("scheduleOutput").innerHTML = `<p role="alert">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+loadSchedule();
+
+</script>
+</body>
+</html>

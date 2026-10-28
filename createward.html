@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Manage Wards</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="dashboard">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2>EcoCollect</h2>
+    <ul>
+      <li onclick="go('admin.html')">Dashboard</li>
+      <li class="active">Manage Wards</li>
+      <li onclick="go('route.html')">Set Route</li>
+      <li onclick="go('schedule.html')">Create Schedule</li>
+      <li onclick="go('complaints.html')">View Complaints</li>
+    </ul>
+
+    <div class="user-box">
+      <span class="badge">ADMIN</span>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+
+    <h1>Manage Wards</h1>
+
+    <!-- Add Ward Section -->
+    <div class="card">
+      <h2>Add New Ward</h2>
+
+      <input type="text" id="wardName" placeholder="Ward Name">
+      <input type="text" id="areaName" placeholder="Area Name">
+      <input type="text" id="supervisor" placeholder="Supervisor Name">
+
+      <button onclick="createWard()">Add Ward</button>
+      <p id="message" style="color:green; margin-top:10px;"></p>
+    </div>
+
+    <!-- Ward List Section -->
+    <div class="card">
+      <h2>Created Wards</h2>
+      <div id="wardList"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="api.js"></script>
+<script>
+
+function go(page){
+  window.location.href = page;
+}
+
+async function createWard(){
+  const wardName = document.getElementById("wardName").value.trim();
+  const areaName = document.getElementById("areaName").value.trim();
+  const supervisor = document.getElementById("supervisor").value.trim();
+
+  if(!wardName || !areaName || !supervisor){
+    alert("Please fill all fields");
+    return;
+  }
+
+  const message = document.getElementById("message");
+  try {
+    await apiRequest("/wards", {
+      method: "POST",
+      body: JSON.stringify({ wardName, areaName, supervisor })
+    });
+    message.style.color = "green";
+    message.innerText = "Ward added successfully.";
+    document.getElementById("wardName").value = "";
+    document.getElementById("areaName").value = "";
+    document.getElementById("supervisor").value = "";
+    await displayWards();
+  } catch (error) {
+    message.style.color = "red";
+    message.innerText = error.message;
+  }
+}
+
+async function displayWards(){
+  const wardList = document.getElementById("wardList");
+
+  try {
+    const { wards } = await apiRequest("/wards");
+    if(wards.length === 0){
+      wardList.innerHTML = "<p>No wards created yet.</p>";
+      return;
+    }
+
+    wardList.innerHTML = wards.map(ward => `
+      <div class="card" style="background:#f9f9f9;">
+        <h3>${escapeHtml(ward.wardName)}</h3>
+        <p><strong>Area:</strong> ${escapeHtml(ward.areaName)}</p>
+        <p><strong>Supervisor:</strong> ${escapeHtml(ward.supervisor)}</p>
+        <button onclick="deleteWard('${escapeHtml(ward._id)}')" style="background:#d32f2f;">Delete</button>
+      </div>
+    `).join("");
+  } catch (error) {
+    wardList.innerHTML = `<p role="alert">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function deleteWard(id){
+  try {
+    await apiRequest(`/wards/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await displayWards();
+  } catch (error) {
+    alert("Could not delete ward: " + error.message);
+  }
+}
+
+if(requireRole("admin")) displayWards();
+
+</script>
+
+</body>
+</html>
